@@ -130,7 +130,7 @@ Native.Bar {
           id: edge
           readonly property bool catching: visible && (!peek.revealed || !barHover.hovered)
           screen: peek.modelData.screen
-          visible: peek.ready && peek.enabledHere && root.barHidden && !edgeRemap.remapping
+          visible: peek.ready && peek.enabledHere && root.barHidden && !remapping
           color: "transparent"
           implicitHeight: 2
           anchors { top: true; left: true; right: true }
@@ -142,7 +142,24 @@ Native.Bar {
           WlrLayershell.layer: WlrLayer.Overlay
           WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-          ScreenMoveRemap { id: edgeRemap; window: edge }
+          // Local stand-in for qs.Ui.ScreenMoveRemap, which omarchy-dev
+          // 4.0.0.r7538 removed: a layer surface cannot change output, so
+          // when the screen moves, unmap for one tick and map on the new one.
+          // screenChanged also fires when the window maps, so compare names;
+          // remapping on every map is a binding loop on `visible`.
+          property bool remapping: false
+          // Assigned once, not bound: a binding could update before the
+          // handler below and hide a real screen move.
+          property string lastScreenName: ""
+          Component.onCompleted: lastScreenName = screen ? screen.name : ""
+          onScreenChanged: {
+            const name = screen ? screen.name : ""
+            if (name === lastScreenName) return
+            lastScreenName = name
+            remapping = true
+            remapTimer.restart()
+          }
+          Timer { id: remapTimer; interval: 50; onTriggered: edge.remapping = false }
 
           HoverHandler {
             id: edgeHover
